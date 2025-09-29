@@ -1,0 +1,99 @@
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.venv*/
+pip-wheel-metadata/
+
+# Byte-compiled / optimized / DLL files
+*.dll
+*.dylib
+*.exe
+
+# -------------------------
+# Environment & secrets
+# -------------------------
+.env
+.env.*
+!.env.template   # keep template in repo
+
+# -------------------------
+# Logs & runtime files
+# -------------------------
+*.log
+*.out
+*.pid
+*.gz
+*.coverage
+coverage.xml
+htmlcov/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+ruff_cache/
+
+# -------------------------
+# IDE / Editor
+# -------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+
+# -------------------------
+# Docker
+# -------------------------
+*.pid
+*.seed
+*.pid.lock
+docker-compose.override.yml
+.docker/
+.dockerignore
+
+# -------------------------
+# Build / Distribution
+# -------------------------
+build/
+dist/
+wheels/
+*.whl
+*.tar.gz
+*.zip
+*.egg-info/
+
+# -------------------------
+# Notebooks
+# -------------------------
+.ipynb_checkpoints
+
+# -------------------------
+# Pre-commit
+# -------------------------
+.pre-commit-config.yaml~
+.pre-commit-hooks.yaml~
+.pre-commit-cache/
+
+# -------------------------
+# Misc
+# -------------------------
+*.DS_Store
+Thumbs.db

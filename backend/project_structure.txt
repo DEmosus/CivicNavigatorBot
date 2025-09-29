@@ -1,0 +1,69 @@
+.
+    .dockerignore
+    .env
+    .env.template
+    .gitignore
+    .pre-commit-config.yaml
+    alembic.ini
+    auth.py
+    civicnavigator.db
+    db.py
+    deps.py
+    dev.db
+    Dockerfile
+    generate_structure.py
+    init_db.py
+    main.py
+    models.py
+    populate_kb.py
+    project_structure.txt
+    README.md
+    requirements-dev.txt
+    requirements.txt
+    schemas.py
+    settings.py
+    __init__.py
+.\.github
+.\.github\workflows
+    ci.yml
+.\alembic
+    env.py
+    README
+    script.py.mako
+.\alembic\versions
+    c4fba991f252_initial_schema.py
+.\routes
+    auth.py
+    chat.py
+    incidents.py
+    kb.py
+    staff.py
+    __init__.py
+.\tests
+    conftest.py
+    test_auth.py
+    test_chat.py
+    test_incidents.py
+.\tests\e2e
+    test_full_flow.py
+    test_kb_flow.py
+    test_monitoring.py
+    test_resident_flow.py
+.\tests\integration
+    test_auth_routes.py
+    test_db_models.py
+    test_incidents_routes.py
+    test_kb_routes.py
+    test_staff_routes.py
+.\tests\unit
+    test_helpers.py
+    test_schemas.py
+    test_security.py
+    test_settings.py
+    __init__.py
+.\utils
+    helpers.py
+    intent.py
+    search.py
+    security.py
+    __init__.py

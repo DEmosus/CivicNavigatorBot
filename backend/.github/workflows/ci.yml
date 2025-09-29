@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up Python
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # 4. Run pre-commit hooks (Black, isort, Ruff, Mypy, safety checks)
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      # 5. Run type checking separately (optional redundancy)
+      - name: Run mypy
+        run: mypy .
+
+      # 6. Run tests with coverage
+      - name: Run pytest
+        run: pytest --maxfail=1 --disable-warnings -q --cov=.
