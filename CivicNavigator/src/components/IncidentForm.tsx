@@ -23,10 +23,9 @@ interface APIError {
 const initialForm: IncidentFormData = {
   title: "",
   description: "",
-  category: "",
+  category: undefined,
   location_text: "",
   contact_email: "",
-  priority: "medium",
 };
 
 const CATEGORY_OPTIONS = [
@@ -38,8 +37,6 @@ const CATEGORY_OPTIONS = [
   "drainage",
   "other",
 ];
-
-const PRIORITY_OPTIONS = ["low", "medium", "high"];
 
 interface IncidentFormProps {
   onSubmitted?: (id: string) => void;
@@ -74,9 +71,6 @@ export default function IncidentForm({
     }
     if (!formData.category) {
       newErrors.category = "Please select a category.";
-    }
-    if (!formData.priority) {
-      newErrors.priority = "Please select a priority.";
     }
     if (
       formData.contact_email &&
@@ -115,13 +109,13 @@ export default function IncidentForm({
       const payload = {
         ...formData,
         location_text: formData.location_text || undefined,
+        contact_email: formData.contact_email || undefined,
       };
 
       const response = await createIncident(payload);
       setIncidentId(response.incident_id);
       setFormData(initialForm); // reset after submit
 
-      // ✅ Notify ChatInterface if provided
       if (onSubmitted) {
         onSubmitted(response.incident_id);
       } else {
@@ -205,28 +199,9 @@ export default function IncidentForm({
           <p className="text-error mb-2">{errors.category}</p>
         )}
 
-        <select
-          name="priority"
-          value={formData.priority}
-          onChange={handleChange}
-          className="w-full bg-midnight border border-divider text-textPrimary p-2 mb-1 rounded"
-          aria-label="Incident priority"
-          required
-        >
-          <option value="">Select priority</option>
-          {PRIORITY_OPTIONS.map((p) => (
-            <option key={p} value={p}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </option>
-          ))}
-        </select>
-        {errors.priority && (
-          <p className="text-error mb-2">{errors.priority}</p>
-        )}
-
         <input
           name="location_text"
-          value={formData.location_text}
+          value={formData.location_text ?? ""}
           onChange={handleChange}
           className="w-full bg-midnight border border-divider text-textPrimary p-2 mb-1 rounded"
           placeholder="Location (landmark or address)"
@@ -238,7 +213,7 @@ export default function IncidentForm({
 
         <input
           name="contact_email"
-          value={formData.contact_email}
+          value={formData.contact_email ?? ""}
           onChange={handleChange}
           className="w-full bg-midnight border border-divider text-textPrimary p-2 mb-1 rounded"
           placeholder="Contact email"

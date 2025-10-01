@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import CivicLayout from "./CivicLayout";
 
 // Mock auth utils
@@ -11,24 +11,7 @@ vi.mock("../utils/auth", () => ({
 
 import { getToken, logout } from "../utils/auth";
 
-// Mock components
-vi.mock("./RoleToggle", () => ({
-  default: ({
-    role,
-    onChange,
-  }: {
-    role: "resident" | "staff";
-    onChange: (role: "resident" | "staff") => void;
-  }) => (
-    <button
-      data-testid="role-toggle"
-      onClick={() => onChange(role === "resident" ? "staff" : "resident")}
-    >
-      Switch to {role === "resident" ? "staff" : "resident"}
-    </button>
-  ),
-}));
-
+// Mock child components (not RoleToggle, we use the real one)
 vi.mock("./ChatInterface", () => ({
   default: () => <div data-testid="chat-screen">Chat Screen</div>,
 }));
@@ -62,7 +45,6 @@ vi.mock("./RegisterForm", () => ({
 }));
 
 describe("CivicLayout", () => {
-  // Helper to setup tests
   const setup = (token: string | null = null) => {
     (getToken as vi.Mock).mockReturnValue(token);
     const user = userEvent.setup();
@@ -72,101 +54,99 @@ describe("CivicLayout", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear(); // reset role before each test
   });
 
   it("shows resident tabs and ChatInterface initially when not logged in", () => {
     setup();
-
-    expect(screen.getByRole("button", { name: /ask services/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /report incident/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /check status/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /ask services/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /report incident/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /check status/i })
+    ).toBeInTheDocument();
     expect(screen.getByTestId("chat-screen")).toBeInTheDocument();
   });
 
   it("switches to staff role (logged out) and shows Staff Tools tab plus login/register", async () => {
     const { user } = setup();
-
-    await user.click(screen.getByTestId("role-toggle"));
-
-    expect(screen.getByRole("button", { name: /staff tools/i })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
+    expect(
+      screen.getByRole("button", { name: /staff tools/i })
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /login/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /register/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /logout/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /register/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /logout/i })
+    ).not.toBeInTheDocument();
   });
 
-  it("shows 'must be logged in' message when viewing staff tools while logged out", async () => {
+  it("shows login form when viewing staff tools while logged out", async () => {
     const { user } = setup();
-
-    await user.click(screen.getByTestId("role-toggle"));
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
     await user.click(screen.getByRole("button", { name: /staff tools/i }));
-
-    expect(screen.getByText(/you must be logged in as staff/i)).toBeInTheDocument();
+    // Instead of a text message, we expect the mocked login form
+    expect(screen.getByTestId("mock-login")).toBeInTheDocument();
   });
 
   it("renders StaffTools when logged in as staff", async () => {
     const { user } = setup("token123");
-
-    await user.click(screen.getByTestId("role-toggle"));
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
     await user.click(screen.getByRole("button", { name: /staff tools/i }));
-
     expect(screen.getByTestId("staff-tools")).toBeInTheDocument();
   });
 
   it("renders IncidentForm when 'Report Incident' is clicked as resident", async () => {
     const { user } = setup();
-
+    await user.selectOptions(screen.getByLabelText(/role/i), "resident");
     await user.click(screen.getByRole("button", { name: /report incident/i }));
     expect(screen.getByTestId("incident-form")).toBeInTheDocument();
   });
 
   it("renders StatusLookup when 'Check Status' is clicked as resident", async () => {
     const { user } = setup();
-
+    await user.selectOptions(screen.getByLabelText(/role/i), "resident");
     await user.click(screen.getByRole("button", { name: /check status/i }));
     expect(screen.getByTestId("status-lookup")).toBeInTheDocument();
   });
 
   it("calls logout and resets to Chat tab when logout is clicked", async () => {
     const { user } = setup("token123");
-
-    await user.click(screen.getByTestId("role-toggle")); // to staff
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
+    await screen.findByRole("button", { name: /logout/i });
     await user.click(screen.getByRole("button", { name: /logout/i }));
-
     expect(logout).toHaveBeenCalled();
     expect(screen.getByTestId("chat-screen")).toBeInTheDocument();
   });
 
   it("login flow switches to Staff Tools tab", async () => {
     const { user } = setup();
-
-    await user.click(screen.getByTestId("role-toggle"));
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
     await user.click(screen.getByRole("button", { name: /login/i }));
     await user.click(screen.getByTestId("mock-login"));
-
     expect(screen.getByTestId("staff-tools")).toBeInTheDocument();
   });
 
   it("resets tab to 'chat' when switching back to resident role", async () => {
     const { user } = setup();
-
-    // to staff
-    await user.click(screen.getByTestId("role-toggle"));
-    // back to resident
-    await user.click(screen.getByTestId("role-toggle"));
-
-    // Wait for resident tabs to render
-    expect(await screen.findByRole("button", { name: /report incident/i }))
-      .toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
+    await user.selectOptions(screen.getByLabelText(/role/i), "resident");
+    expect(
+      await screen.findByRole("button", { name: /report incident/i })
+    ).toBeInTheDocument();
     expect(screen.getByTestId("chat-screen")).toBeInTheDocument();
   });
 
   it("shows logout button when logged in as staff", async () => {
     const { user } = setup("token123");
-
-    // Must be in staff role to see Logout
-    await user.click(screen.getByTestId("role-toggle"));
-
-    expect(await screen.findByRole("button", { name: /logout/i }))
-      .toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/role/i), "staff");
+    expect(
+      await screen.findByRole("button", { name: /logout/i })
+    ).toBeInTheDocument();
   });
 });

@@ -1,29 +1,33 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi, describe, it, expect, beforeEach } from "vitest";
-import IncidentForm from "./IncidentForm";
-import type { Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createIncident } from "../utils/api";
+import IncidentForm from "./IncidentForm";
 
 // Mock the API
 vi.mock("../utils/api", () => ({
   createIncident: vi.fn(),
 }));
 
+const mockedCreateIncident = vi.mocked(createIncident);
+
 describe("IncidentForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  // Helper to ensure required fields pass HTML5 validation
+  // Helper to ensure required fields pass validation
   const fillMinimumValidFields = async () => {
-    await userEvent.type(screen.getByPlaceholderText(/title/i), "Valid Title");
+    await userEvent.type(
+      screen.getByLabelText(/incident title/i),
+      "Valid Title"
+    );
     await userEvent.selectOptions(
-      screen.getByLabelText(/category/i),
+      screen.getByLabelText(/incident category/i),
       "road_maintenance"
     );
     await userEvent.type(
-      screen.getByPlaceholderText(/description/i),
+      screen.getByLabelText(/incident description/i),
       "Valid description"
     );
   };
@@ -31,77 +35,67 @@ describe("IncidentForm", () => {
   it("renders form fields correctly", () => {
     render(<IncidentForm />);
     expect(
-      screen.getByRole("heading", { name: /report incident/i })
+      screen.getByRole("heading", { name: /report an incident/i })
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/title/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/category/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/location/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/contact/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/description/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/incident title/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/incident category/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/incident location/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/contact email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/incident description/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /submit incident/i })
     ).toBeInTheDocument();
   });
 
   it("submits the form and shows success message", async () => {
-  (createIncident as Mock<typeof createIncident>).mockResolvedValue({
-    incident_id: "INC123",
-    status: "submitted",
-    created_at: "2024-06-01T12:00:00Z",
+    mockedCreateIncident.mockResolvedValue({
+      incident_id: "INC123",
+      status: "submitted",
+      created_at: "2024-06-01T12:00:00Z",
+    });
+
+    render(<IncidentForm />);
+
+    await userEvent.type(
+      screen.getByLabelText(/incident title/i),
+      "Water pipe burst"
+    );
+    await userEvent.selectOptions(
+      screen.getByLabelText(/incident category/i),
+      "water_supply"
+    );
+    await userEvent.type(
+      screen.getByLabelText(/incident location/i),
+      "South B"
+    );
+    await userEvent.type(
+      screen.getByLabelText(/contact email/i),
+      "user@example.com"
+    );
+    await userEvent.type(
+      screen.getByLabelText(/incident description/i),
+      "Pipe burst near the petrol station"
+    );
+
+    expect(
+      (screen.getByLabelText(/incident category/i) as HTMLSelectElement).value
+    ).toBe("water_supply");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /submit incident/i })
+    );
+
+    await waitFor(() => {
+      expect(mockedCreateIncident).toHaveBeenCalledTimes(1);
+    });
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(/incident submitted/i);
+    expect(status).toHaveTextContent(/inc123/i);
   });
-
-  render(<IncidentForm />);
-
-  await userEvent.type(
-    screen.getByPlaceholderText(/title/i),
-    "Water pipe burst"
-  );
-
-  // IMPORTANT: must match an <option value> exactly
-  await userEvent.selectOptions(
-    screen.getByLabelText(/category/i),
-    "water_supply"
-  );
-
-  await userEvent.type(
-    screen.getByPlaceholderText(/location/i),
-    "South B"
-  );
-
-  // Leave empty OR use a valid email to pass HTML5 validation
-  await userEvent.type(
-    screen.getByPlaceholderText(/contact/i),
-    "user@example.com"
-  );
-
-  await userEvent.type(
-    screen.getByPlaceholderText(/description/i),
-    "Pipe burst near the petrol station"
-  );
-
-  // sanity check: category value really changed
-  expect(
-    (screen.getByLabelText(/category/i) as HTMLSelectElement).value
-  ).toBe("water_supply");
-
-  await userEvent.click(
-    screen.getByRole("button", { name: /submit incident/i })
-  );
-
-  // verify API call was made
-  await waitFor(() => {
-    expect(createIncident).toHaveBeenCalledTimes(1);
-  });
-
-  // now wait for success message
-  const status = await screen.findByRole("status");
-  expect(status).toHaveTextContent(/incident submitted/i);
-  expect(status).toHaveTextContent(/inc123/i);
-}, 10000); // extend timeout
-
 
   it("shows field validation errors from a 422 response", async () => {
-    (createIncident as Mock<typeof createIncident>).mockRejectedValue({
+    mockedCreateIncident.mockRejectedValue({
       response: {
         status: 422,
         data: [
@@ -125,7 +119,7 @@ describe("IncidentForm", () => {
   });
 
   it("shows general error from a 422 single detail object", async () => {
-    (createIncident as Mock<typeof createIncident>).mockRejectedValue({
+    mockedCreateIncident.mockRejectedValue({
       response: {
         status: 422,
         data: { detail: "Something went wrong" },
@@ -140,16 +134,12 @@ describe("IncidentForm", () => {
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/something went wrong/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
     });
   });
 
   it("shows fallback error message on generic failure", async () => {
-    (createIncident as Mock<typeof createIncident>).mockRejectedValue(
-      new Error("Failed")
-    );
+    mockedCreateIncident.mockRejectedValue(new Error("Failed"));
 
     render(<IncidentForm />);
     await fillMinimumValidFields();

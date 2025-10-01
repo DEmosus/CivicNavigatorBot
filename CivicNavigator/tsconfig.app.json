@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["vitest", "vite/client","vitest/globals"],
+    "types": ["vitest", "vite/client", "vitest/globals"],
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2022",
     "useDefineForClassFields": true,
@@ -24,6 +24,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"],
-    "exclude": ["**/*.test.ts", "**/*.test.tsx", "vitest.setup.ts"]
+  "include": ["src"]
 }

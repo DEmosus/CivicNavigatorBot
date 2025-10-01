@@ -1,38 +1,21 @@
 import { useEffect, useState } from "react";
+import type { KBSearchResultItem, StaffIncidentListItem } from "../types";
 import {
-  getKbDocs,
   getAllIncidents,
+  searchStaffKb,
   updateIncidentStatus,
 } from "../utils/api";
 import { isStaff } from "../utils/auth";
 import LoginForm from "./LoginForm";
 
-interface KbDoc {
-  doc_id: string;
-  title: string;
-  snippet: string;
-  score: number;
-}
-
-interface Incident {
-  incident_id: string;
-  title: string;
-  category: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  priority: string;
-  description?: string;
-}
-
-const STATUS_OPTIONS = ["NEW", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
+const STATUS_OPTIONS = ["new", "in_progress", "resolved", "closed"] as const;
 
 export default function StaffTools() {
-  const [docs, setDocs] = useState<KbDoc[]>([]);
+  const [docs, setDocs] = useState<KBSearchResultItem[]>([]);
   const [kbError, setKbError] = useState<string | null>(null);
   const [kbLoading, setKbLoading] = useState(false);
   const [kbQuery, setKbQuery] = useState("");
-  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [incidents, setIncidents] = useState<StaffIncidentListItem[]>([]);
   const [incidentsError, setIncidentsError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -46,7 +29,7 @@ export default function StaffTools() {
     }
     setKbLoading(true);
     try {
-      const results = await getKbDocs(kbQuery);
+      const results = await searchStaffKb(kbQuery);
       const items = results.results || [];
       setDocs(items);
       setKbError(items.length ? null : "No knowledge base entries found");
@@ -62,7 +45,7 @@ export default function StaffTools() {
   const fetchIncidents = async () => {
     try {
       const data = await getAllIncidents();
-      setIncidents(data as unknown as Incident[]);
+      setIncidents(data);
       setIncidentsError(null);
     } catch {
       setIncidentsError("Failed to load incidents");
@@ -75,28 +58,27 @@ export default function StaffTools() {
   }, []);
 
   /** Update status inline */
- const handleStatusChange = async (incidentId: string, newStatus: string) => {
-  try {
-    setUpdatingId(incidentId);
-    const updated = await updateIncidentStatus(incidentId, newStatus);
-    setIncidents((prev) =>
-      prev.map((inc) =>
-        inc.incident_id === incidentId
-          ? {
-              ...inc,
-              status: updated.status ?? newStatus,
-              updated_at: updated.last_update || inc.updated_at,
-            }
-          : inc
-      )
-    );
-  } catch {
-    alert("Failed to update status");
-  } finally {
-    setUpdatingId(null);
-  }
-};
-
+  const handleStatusChange = async (incidentId: string, newStatus: string) => {
+    try {
+      setUpdatingId(incidentId);
+      const updated = await updateIncidentStatus(incidentId, newStatus);
+      setIncidents((prev) =>
+        prev.map((inc) =>
+          inc.incident_id === incidentId
+            ? {
+                ...inc,
+                status: updated.status ?? newStatus,
+                last_update: updated.last_update || inc.last_update,
+              }
+            : inc
+        )
+      );
+    } catch {
+      alert("Failed to update status");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   /** Staff gate */
   if (!isStaff()) {
@@ -142,6 +124,16 @@ export default function StaffTools() {
             <div key={doc.doc_id} className="p-3 border rounded">
               <p className="font-bold">{doc.title}</p>
               <p className="text-sm text-textMuted">{doc.snippet}</p>
+              {doc.source_url && (
+                <a
+                  href={doc.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accentCyan text-xs"
+                >
+                  Source
+                </a>
+              )}
             </div>
           ))}
         </div>
@@ -172,26 +164,28 @@ export default function StaffTools() {
                   )}
                   <p className="text-xs text-textMuted">
                     Created{" "}
-                    {new Date(incident.created_at).toLocaleString()} — Last
-                    updated {new Date(incident.updated_at).toLocaleString()}
+                    {incident.created_at
+                      ? new Date(incident.created_at).toLocaleString()
+                      : "N/A"}{" "}
+                    — Last updated{" "}
+                    {new Date(incident.last_update).toLocaleString()}
                   </p>
                 </div>
 
                 {/* Right: priority + status */}
                 <div className="flex flex-col items-end gap-2">
-                  <span className="text-xs px-2 py-1 rounded bg-midnight border border-divider">
-                    Priority: {incident.priority}
-                  </span>
+                  {incident.priority && (
+                    <span className="text-xs px-2 py-1 rounded bg-midnight border border-divider">
+                      Priority: {incident.priority}
+                    </span>
+                  )}
 
                   <label className="text-xs text-textMuted">
                     Status
                     <select
                       value={incident.status}
                       onChange={(e) =>
-                        handleStatusChange(
-                          incident.incident_id,
-                          e.target.value
-                        )
+                        handleStatusChange(incident.incident_id, e.target.value)
                       }
                       disabled={updatingId === incident.incident_id}
                       className="ml-2 border border-divider rounded p-1 text-black"

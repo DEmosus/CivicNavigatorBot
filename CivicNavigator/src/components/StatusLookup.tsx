@@ -1,15 +1,10 @@
 import { useState } from "react";
+import type { IncidentStatusResponse } from "../types";
 import { getIncidentStatus } from "../utils/api";
-
-interface IncidentStatus {
-  status: string;
-  last_update: string;
-  history: { note: string; timestamp: string }[];
-}
 
 export default function StatusLookup() {
   const [input, setInput] = useState("");
-  const [incident, setIncident] = useState<IncidentStatus | null>(null);
+  const [incident, setIncident] = useState<IncidentStatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,7 +31,11 @@ export default function StatusLookup() {
   return (
     <div className="bg-panel border border-divider text-textPrimary rounded-xl p-4 mb-6 shadow">
       <h2 className="text-2xl font-semibold mb-4">Check Incident Status</h2>
-      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 sm:flex-nowrap mb-4" aria-label="Check Incident Status">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-wrap gap-2 sm:flex-nowrap mb-4"
+        aria-label="Check Incident Status"
+      >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -56,17 +55,20 @@ export default function StatusLookup() {
       {error && <p className="text-error text-sm">{error}</p>}
 
       {incident && (
-        <div className="text-sm text-textMuted">
+        <div className="text-sm text-textMuted" aria-live="polite">
           <p>
             <strong>Status:</strong> {incident.status}
           </p>
           <p>
-            <strong>Last Updated:</strong> {incident.last_update}
+            <strong>Last Updated:</strong>{" "}
+            {new Date(incident.last_update).toLocaleString()}
           </p>
-          <ul className="list-disc ml-6 mt-2">
+          <h3 className="mt-2 font-medium">History</h3>
+          <ul className="list-disc ml-6 mt-1">
             {incident.history.map((h, i) => (
               <li key={i}>
-                {h.note} ({h.timestamp})
+                <span className="font-semibold">{h.status}</span> — {h.note} (
+                {new Date(h.timestamp).toLocaleString()})
               </li>
             ))}
           </ul>

@@ -17,6 +17,8 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+project_structure.txt
+generate_structure.py
 *.suo
 *.ntvs*
 *.njsproj

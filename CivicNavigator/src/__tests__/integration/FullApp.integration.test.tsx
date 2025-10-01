@@ -1,5 +1,4 @@
-// src/__tests__/integration/FullApp.integration.test.tsx
-import { describe, it, beforeEach, expect, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Hoist API mock so it's in place before the component is imported
 vi.mock("../../utils/api", () => {
@@ -55,77 +54,75 @@ describe("Full App Integration – Resident chat → report → status (mocked b
     vi.clearAllMocks();
   });
 
-  it(
-    "completes chat, reports an incident, and looks up status",
-    async () => {
-      const user = userEvent.setup();
-      render(<CivicLayout />);
+  it("completes chat, reports an incident, and looks up status", async () => {
+    const user = userEvent.setup();
+    render(<CivicLayout />);
 
-      // 1) Chat step
-      const chatInput = await screen.findByLabelText(/chat input/i);
-      await user.type(chatInput, "When is garbage collected?");
-      await user.click(screen.getByRole("button", { name: /send/i }));
+    // 1) Chat step
+    const chatInput = await screen.findByPlaceholderText(/type your message/i);
+    await user.type(chatInput, "When is garbage collected?");
+    await user.click(screen.getByRole("button", { name: /send/i }));
 
-      expect(
-        await screen.findByText(/garbage is collected/i)
-      ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/garbage is collected/i)
+    ).toBeInTheDocument();
 
-      // 2) Report Incident
-      await user.click(screen.getByRole("button", { name: /report incident/i }));
+    // 2) Report Incident
+    await user.click(screen.getByRole("button", { name: /report incident/i }));
 
-      await user.type(
-        screen.getByLabelText(/title/i),
-        "Integration Test – Water leak"
-      );
-      await user.selectOptions(
-        screen.getByLabelText(/category/i),
-        "water_supply"
-      );
-      await user.type(
-        screen.getByLabelText(/location/i),
-        "Integration Test Location"
-      );
-      await user.type(
-        screen.getByLabelText(/contact_email/i),
-        "tester@example.com"
-      );
-      await user.type(
-        screen.getByLabelText(/description/i),
-        "This is a test incident created by integration test."
-      );
+    await user.type(
+      screen.getByLabelText(/title/i),
+      "Integration Test – Water leak"
+    );
+    await user.selectOptions(
+      screen.getByLabelText(/category/i),
+      "water_supply"
+    );
+    await user.type(
+      screen.getByLabelText(/location/i),
+      "Integration Test Location"
+    );
+    await user.type(
+      screen.getByPlaceholderText(/email/i),
+      "tester@example.com"
+    );
+    await user.type(
+      screen.getByLabelText(/description/i),
+      "This is a test incident created by integration test."
+    );
 
-      await user.click(screen.getByRole("button", { name: /submit incident/i }));
+    await user.click(screen.getByRole("button", { name: /submit incident/i }));
 
-      await waitFor(() => {
-        expect(api.createIncident).toHaveBeenCalled();
-      });
+    await waitFor(() => {
+      expect(api.createIncident).toHaveBeenCalled();
+    });
 
-      expect(
-        screen.getByText(/INC-2025-999/, { exact: false })
-      ).toBeInTheDocument();
+    expect(
+      screen.getByText(/INC-2025-999/, { exact: false })
+    ).toBeInTheDocument();
 
-      // 3) Status Lookup
-      await user.click(screen.getByRole("button", { name: /check status/i }));
+    // 3) Status Lookup
+    await user.click(screen.getByRole("button", { name: /check status/i }));
 
-      const statusForm = screen.getByRole("form", {
-        name: /check incident status/i,
-      });
+    const statusForm = screen.getByRole("form", {
+      name: /check incident status/i,
+    });
 
-      const idInput = within(statusForm).getByLabelText(/incident id/i);
-      await user.clear(idInput);
-      await user.type(idInput, "INC-2025-999");
-      await user.click(within(statusForm).getByRole("button", { name: /check/i }));
+    const idInput = within(statusForm).getByLabelText(/incident id/i);
+    await user.clear(idInput);
+    await user.type(idInput, "INC-2025-999");
+    await user.click(
+      within(statusForm).getByRole("button", { name: /check/i })
+    );
 
-      await waitFor(() => {
-        expect(api.getIncidentStatus).toHaveBeenCalledWith("INC-2025-999");
-      });
+    await waitFor(() => {
+      expect(api.getIncidentStatus).toHaveBeenCalledWith("INC-2025-999");
+    });
 
-      // Grab <strong>Status:</strong>, then assert on its parent <p>
-      const statusLabel = screen.getByText(/status:/i);
-      expect(statusLabel.parentElement).not.toBeNull();
-      const statusContainer = statusLabel.parentElement as HTMLElement;
-      expect(statusContainer).toHaveTextContent(/status:\s*new/i);
-    },
-    20_000
-  );
+    // Grab <strong>Status:</strong>, then assert on its parent <p>
+    const statusLabel = screen.getByText(/status:/i);
+    expect(statusLabel.parentElement).not.toBeNull();
+    const statusContainer = statusLabel.parentElement as HTMLElement;
+    expect(statusContainer).toHaveTextContent(/status:\s*new/i);
+  }, 20_000);
 });

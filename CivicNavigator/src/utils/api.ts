@@ -1,7 +1,12 @@
 import type {
   ChatResponse,
+  IncidentCreated,
   IncidentFormData,
   IncidentStatusResponse,
+  KBSearchOut,
+  KBSearchResponse,
+  StaffIncidentListItem,
+  TokenOut,
 } from "../types";
 import { getToken } from "./auth";
 
@@ -72,6 +77,8 @@ async function patchJSON<T>(
   return (await res.json()) as T;
 }
 
+/** --- API FUNCTIONS --- */
+
 /** Chat */
 export async function sendChatMessage(
   message: string,
@@ -86,11 +93,10 @@ export async function sendChatMessage(
 }
 
 /** Create incident */
-export async function createIncident(data: IncidentFormData) {
-  return postJSON<{ incident_id: string; status: string; created_at: string }>(
-    "/api/incidents",
-    data
-  );
+export async function createIncident(
+  data: IncidentFormData
+): Promise<IncidentCreated> {
+  return postJSON<IncidentCreated>("/api/incidents", data);
 }
 
 /** Get incident status */
@@ -100,44 +106,32 @@ export async function getIncidentStatus(
   return getJSON<IncidentStatusResponse>(`/api/incidents/${id}/status`);
 }
 
-/** Search KB (staff-only) */
-export async function getKbDocs(query: string) {
-  return getJSON<{
-    results: {
-      doc_id: string;
-      title: string;
-      snippet: string;
-      score: number;
-      source_url?: string;
-    }[];
-  }>(`/api/staff/kb/search?query=${encodeURIComponent(query)}`);
+/** Public KB search */
+export async function searchPublicKb(query: string): Promise<KBSearchResponse> {
+  return getJSON<KBSearchResponse>(
+    `/api/kb/search?q=${encodeURIComponent(query)}`
+  );
+}
+
+/** Staff KB search */
+export async function searchStaffKb(query: string): Promise<KBSearchOut> {
+  return getJSON<KBSearchOut>(
+    `/api/staff/kb/search?query=${encodeURIComponent(query)}`
+  );
 }
 
 /** Staff: get all incidents */
-export async function getAllIncidents() {
-  return getJSON<
-    {
-      incident_id: string;
-      title?: string;
-      category?: string;
-      priority?: string;
-      description?: string;
-      status: string;
-      created_at?: string;
-      last_update: string;
-    }[]
-  >("/api/staff/incidents");
+export async function getAllIncidents(): Promise<StaffIncidentListItem[]> {
+  return getJSON<StaffIncidentListItem[]>("/api/staff/incidents");
 }
 
-/** Staff: update incident status */
+/** Staff: update incident status (with optional note) */
 export async function updateIncidentStatus(
   incidentId: string,
-  status: string
-) {
-  return patchJSON<{ incident_id: string; status: string; last_update: string }>(
-    `/api/staff/incidents/${incidentId}`,
-    { status }
-  );
+  status: string,
+  note?: string
+): Promise<{ incident_id: string; status: string; last_update: string }> {
+  return patchJSON(`/api/staff/incidents/${incidentId}`, { status, note });
 }
 
 /** Auth: register new user */
@@ -146,19 +140,19 @@ export async function registerUser(
   password: string,
   full_name = "",
   is_staff = false
-) {
-  return postJSON<{
-    access_token?: string;
-    token_type?: string;
-    is_staff?: boolean;
-  }>("/api/auth/register", { email, password, full_name, is_staff });
+): Promise<TokenOut> {
+  return postJSON<TokenOut>("/api/auth/register", {
+    email,
+    password,
+    full_name,
+    is_staff,
+  });
 }
 
 /** Auth: login user */
-export async function loginUser(email: string, password: string) {
-  return postJSON<{
-    access_token: string;
-    token_type: string;
-    is_staff?: boolean;
-  }>("/api/auth/login", { email, password });
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<TokenOut> {
+  return postJSON<TokenOut>("/api/auth/login", { email, password });
 }

@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type {
   ChatResponse,
+  IncidentCategory,
   IncidentFormData,
-  IncidentStatusResponse,
   Message,
 } from "../types";
-import {
-  createIncident,
-  getIncidentStatus,
-  sendChatMessage,
-} from "../utils/api";
+import { createIncident, sendChatMessage } from "../utils/api";
 
 type IncidentStep =
   | "idle"
@@ -22,13 +18,27 @@ type IncidentStep =
 
 const initialIncident: IncidentFormData = {
   title: "",
-  category: "",
+  category: undefined,
   location_text: "",
   contact_email: "",
   description: "",
 };
 
-export default function ChatInterface() {
+const CATEGORY_OPTIONS: IncidentCategory[] = [
+  "road_maintenance",
+  "waste_management",
+  "water_supply",
+  "electricity",
+  "street_lighting",
+  "drainage",
+  "other",
+] as const;
+
+export default function ChatInterface({
+  role,
+}: {
+  role: "resident" | "staff";
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string>(() => {
@@ -78,9 +88,8 @@ export default function ChatInterface() {
   const validateEmail = (email: string): boolean =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const validateCategory = (category: string): boolean => {
-    const allowed = ["road_maintenance", "waste_management", "water", "other"];
-    return allowed.includes(category.toLowerCase());
+  const validateCategory = (category: string): category is IncidentCategory => {
+    return CATEGORY_OPTIONS.includes(category as IncidentCategory);
   };
 
   /** 📝 Handle guided incident flow */
@@ -95,7 +104,9 @@ export default function ChatInterface() {
         setIncidentStep("awaiting_category");
         addMessage(
           "bot",
-          "What category best describes this issue? (road_maintenance, waste_management, water, other)"
+          `What category best describes this issue? (${CATEGORY_OPTIONS.join(
+            ", "
+          )})`
         );
         return;
       }
@@ -103,7 +114,9 @@ export default function ChatInterface() {
         if (!validateCategory(userInput)) {
           addMessage(
             "bot",
-            "⚠️ Invalid category. Please choose: road_maintenance, waste_management, water, or other."
+            `⚠️ Invalid category. Please choose one of: ${CATEGORY_OPTIONS.join(
+              ", "
+            )}.`
           );
           return;
         }
@@ -203,45 +216,15 @@ export default function ChatInterface() {
     try {
       const response: ChatResponse = await sendChatMessage(
         userText,
-        "resident",
+        role,
         sessionId
       );
       addMessage("bot", response.reply);
 
-      if (response.intent === "incident_report") {
-        // Start guided flow
-        setIncidentStep("awaiting_title");
-        addMessage("bot", "Let’s file an incident. What is the title?");
-        return;
-      }
-
-      if (response.intent === "status_check" && response.incident_id) {
-        addMessage(
-          "bot",
-          `🔎 Checking status for incident ${response.incident_id}...`
-        );
-
-        try {
-          const status: IncidentStatusResponse = await getIncidentStatus(
-            response.incident_id
-          );
-          const historyLines = status.history
-            .map(
-              (h) =>
-                `- ${h.status} (${new Date(h.timestamp).toLocaleString()})${
-                  h.note ? ` — ${h.note}` : ""
-                }`
-            )
-            .join("\n");
-
-          addMessage(
-            "bot",
-            `📋 Incident ${status.incident_id} is currently *${status.status}*.\n\nHistory:\n${historyLines}`
-          );
-        } catch (err) {
-          console.error("Status check error:", err);
-          addMessage("bot", "❌ Failed to retrieve status. Please try again.");
-        }
+      if (response.citations?.length) {
+        response.citations.forEach((c) => {
+          addMessage("system", `📚 ${c.title}: ${c.snippet}`);
+        });
       }
     } catch (error) {
       console.error("Chat error:", error);

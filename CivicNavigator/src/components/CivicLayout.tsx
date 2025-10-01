@@ -1,15 +1,18 @@
-import { useState, useEffect } from "react";
-import StaffTools from "./StaffTools";
-import RoleToggle from "./RoleToggle";
+import { useEffect, useState } from "react";
+import { getToken, logout } from "../utils/auth";
 import ChatInterface from "./ChatInterface";
 import IncidentForm from "./IncidentForm";
-import StatusLookup from "./StatusLookup";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
-import { getToken, logout } from "../utils/auth";
+import RoleToggle from "./RoleToggle";
+import StaffTools from "./StaffTools";
+import StatusLookup from "./StatusLookup";
 
 export default function CivicLayout() {
-  const [role, setRole] = useState<"resident" | "staff">("resident");
+  const [role, setRole] = useState<"resident" | "staff">(
+    () =>
+      (localStorage.getItem("civic_role") as "resident" | "staff") || "resident"
+  );
   const [tab, setTab] = useState("chat");
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!getToken());
 
@@ -17,9 +20,13 @@ export default function CivicLayout() {
     setIsLoggedIn(!!getToken());
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem("civic_role", role);
+  }, [role]);
+
   const isResident = role === "resident";
 
-  // Keep Staff Tools in the tab list anytime role = "staff"
+  // Tabs differ by role
   const tabs = isResident
     ? [
         { key: "chat", label: "Ask Services" },
@@ -34,7 +41,7 @@ export default function CivicLayout() {
   const handleLogout = () => {
     logout();
     setIsLoggedIn(false);
-    // ensure staff-only UI is hidden and we land on a safe tab
+    setRole("resident"); // reset role for safety
     setTab("chat");
   };
 
@@ -72,6 +79,7 @@ export default function CivicLayout() {
           <button
             key={key}
             onClick={() => setTab(key)}
+            aria-current={tab === key ? "page" : undefined}
             className={`px-4 py-2 text-sm sm:text-base rounded border border-divider min-w-[120px] text-center transition-colors duration-200 ${
               tab === key
                 ? "bg-accentCyan text-midnight font-semibold"
@@ -87,6 +95,7 @@ export default function CivicLayout() {
           <>
             <button
               onClick={() => setTab("login")}
+              aria-current={tab === "login" ? "page" : undefined}
               className={`px-4 py-2 text-sm sm:text-base rounded border border-divider min-w-[120px] text-center transition-colors duration-200 ${
                 tab === "login"
                   ? "bg-accentCyan text-midnight font-semibold"
@@ -98,6 +107,7 @@ export default function CivicLayout() {
 
             <button
               onClick={() => setTab("register")}
+              aria-current={tab === "register" ? "page" : undefined}
               className={`px-4 py-2 text-sm sm:text-base rounded border border-divider min-w-[120px] text-center transition-colors duration-200 ${
                 tab === "register"
                   ? "bg-accentCyan text-midnight font-semibold"
@@ -122,9 +132,12 @@ export default function CivicLayout() {
             {isLoggedIn ? (
               <StaffTools />
             ) : (
-              <p className="text-center text-textMuted">
-                You must be logged in as staff to view this section.
-              </p>
+              <LoginForm
+                onLogin={() => {
+                  setIsLoggedIn(true);
+                  setTab("staff-tools");
+                }}
+              />
             )}
           </>
         )}
