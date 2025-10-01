@@ -1,8 +1,10 @@
+import json
 from typing import Dict, Any, List
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from backend.models import Incident, IncidentHistory, IncidentStatus, KBDoc
+from backend.models import Incident, IncidentHistory, IncidentStatus, KBDoc, KBChunk
+from backend.utils.search import _embedder  # reuse the same embedder
 
 
 # -------------------------
@@ -96,8 +98,19 @@ def test_update_incident_not_found(client: TestClient, staff_token: str):
 
 
 def test_staff_kb_search_returns_results(client: TestClient, session: Session, staff_token: str):
-    doc = KBDoc(title="Garbage Collection", body="Trash is collected every Monday.", source_url="http://kb.local/doc1")
+    # Create KB doc
+    doc = KBDoc(
+        title="Garbage Collection",
+        body="Trash is collected every Monday.",
+        source_url="http://kb.local/doc1"
+    )
     session.add(doc)
+    session.commit()
+
+    # Add a chunk with embedding so search can find it
+    vec = _embedder.encode(doc.body, convert_to_numpy=True).tolist()
+    chunk = KBChunk(doc_id=doc.id, text=doc.body, embedding=json.dumps(vec))
+    session.add(chunk)
     session.commit()
 
     response = client.get("/api/staff/kb/search?query=trash", headers=auth_headers(staff_token))

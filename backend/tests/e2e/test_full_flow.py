@@ -1,9 +1,11 @@
 import uuid
+import json
 from typing import Dict, Any
 from fastapi.testclient import TestClient
 from sqlmodel import select, Session
 
-from backend.models import Incident, IncidentStatus
+from backend.models import Incident, IncidentStatus, KBDoc, KBChunk
+from backend.utils.search import _embedder
 
 
 # -------------------------
@@ -96,14 +98,18 @@ def test_full_happy_path(client: TestClient, session: Session, staff_token: str)
     assert r_status2.json()["status"] == "resolved"
 
     # --- 6. Staff indexes and searches KB ---
-    from backend.models import KBDoc
-
     doc = KBDoc(
         title="Garbage Collection",
         body="Trash is collected every Monday.",
         source_url="http://kb.local/doc1"
     )
     session.add(doc)
+    session.commit()
+
+    # Add a chunk with embedding so search can find it
+    vec = _embedder.encode(doc.body, convert_to_numpy=True).tolist()
+    chunk = KBChunk(doc_id=doc.id, text=doc.body, embedding=json.dumps(vec))
+    session.add(chunk)
     session.commit()
 
     r_search = client.get("/api/staff/kb/search?query=trash", headers=auth_headers(staff_token))

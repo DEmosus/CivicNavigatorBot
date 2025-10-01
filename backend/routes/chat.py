@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from uuid import uuid4
 from datetime import datetime, timezone
+from typing import List, Tuple
 
 from backend.db import get_session
 from backend.utils.helpers import generate_public_id
@@ -20,9 +21,13 @@ async def chat_message(payload: ChatIn, session: Session = Depends(get_session))
     session_id = payload.session_id or str(uuid4())
 
     # === 1. Find or create conversation ===
-    convo = session.exec(select(Conversation).where(Conversation.session_id == session_id)).first()
+    convo = session.exec(
+        select(Conversation).where(Conversation.session_id == session_id)
+    ).first()
     if not convo:
-        convo = Conversation(session_id=session_id, user_id=None, pending_intent=None, state={})
+        convo = Conversation(
+            session_id=session_id, user_id=None, pending_intent=None, state={}
+        )
         session.add(convo)
         session.flush()
 
@@ -34,9 +39,9 @@ async def chat_message(payload: ChatIn, session: Session = Depends(get_session))
     )
     session.add(msg_user)
 
-    reply = ""
-    confidence = 0.5
-    citations: list[Citation] = []
+    reply: str = ""
+    confidence: float = 0.5
+    citations: List[Citation] = []
 
     # Ensure convo.state dict exists
     if convo.state is None:
@@ -101,7 +106,9 @@ async def chat_message(payload: ChatIn, session: Session = Depends(get_session))
 
     elif convo.pending_intent == "status_check":
         # User should provide an incident ID
-        incident = session.exec(select(Incident).where(Incident.public_id == payload.message.strip())).first()
+        incident = session.exec(
+            select(Incident).where(Incident.public_id == payload.message.strip())
+        ).first()
         if incident:
             reply = f"ℹ️ The status of incident **{incident.public_id}** is: *{incident.status.value}*."
         else:
@@ -123,15 +130,26 @@ async def chat_message(payload: ChatIn, session: Session = Depends(get_session))
             convo.pending_intent = "status_check"
 
         elif intent == "general_query":
-            # === Knowledge base search ===
-            docs = session.exec(select(KBDoc)).all()
-            scored = [(d, score_text(payload.message, f"{d.title}\n{d.body}")) for d in docs]
-            scored = [t for t in scored if t[1] > 0]
+            # === Knowledge base search (embedding-based) ===
+            docs: List[KBDoc] = session.exec(select(KBDoc)).all()
+
+            scored: List[Tuple[KBDoc, float]] = []
+            for d in docs:
+                kb_embeddings: List[str] = [c.embedding for c in d.chunks if c.embedding]
+                sim: float = score_text(payload.message, kb_embeddings)
+                scored.append((d, sim))
+
+            # filter out very low scores
+            scored = [t for t in scored if t[1] > 0.3]
             scored.sort(key=lambda x: x[1], reverse=True)
-            top = scored[:3]
+            top: List[Tuple[KBDoc, float]] = scored[:3]
 
             citations = [
-                Citation(title=d.title, snippet=best_snippet(d.body, payload.message), source_link=d.source_url)
+                Citation(
+                    title=d.title,
+                    snippet=best_snippet(payload.message, d.body),
+                    source_link=d.source_url,
+                )
                 for d, _ in top
             ]
 
@@ -139,7 +157,7 @@ async def chat_message(payload: ChatIn, session: Session = Depends(get_session))
                 reply = "Here’s what I found:\n" + "\n".join(
                     f"{i+1}. {c.title}" for i, c in enumerate(citations)
                 )
-                confidence = 0.75 if len(top) >= 2 else 0.55
+                confidence = float(top[0][1])
             else:
                 reply = "I couldn’t find a reliable answer in the KB. Could you clarify?"
                 confidence = 0.2

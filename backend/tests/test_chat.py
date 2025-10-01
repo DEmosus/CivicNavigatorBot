@@ -1,9 +1,11 @@
+import json
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select, desc
 from typing import Optional
 import uuid
 
-from backend.models import Conversation, Message, Incident, KBDoc, IncidentStatus
+from backend.models import Conversation, Message, Incident, KBDoc, IncidentStatus, KBChunk
+from backend.utils.search import _embedder
 
 
 # -------------------------
@@ -100,6 +102,12 @@ def test_kb_query_returns_citations(client: TestClient, session: Session):
     # Add KB doc
     kb = KBDoc(title="Garbage Collection", body="Trash is collected every Monday.", source_url="http://kb.local/doc1")
     session.add(kb)
+    session.commit()
+
+    # Add a chunk with embedding
+    vec = _embedder.encode(kb.body, convert_to_numpy=True).tolist()
+    chunk = KBChunk(doc_id=kb.id, text=kb.body, embedding=json.dumps(vec))
+    session.add(chunk)
     session.commit()
 
     r = send_message(client, "When is trash collected?")

@@ -25,7 +25,7 @@ def list_incidents(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: Session = Depends(get_session),
-    staff_user: Any = Depends(require_staff),  # keep staff context for audit/logging
+    staff_user: Any = Depends(require_staff),
 ) -> list[StaffIncidentListItem]:
     """List all incidents with their latest update timestamp, paginated."""
     offset = (page - 1) * page_size
@@ -36,7 +36,6 @@ def list_incidents(
     out: list[StaffIncidentListItem] = []
 
     for inc in rows:
-        # find latest history item for last_update
         h = session.exec(
             select(IncidentHistory)
             .where(IncidentHistory.incident_id == inc.id)
@@ -81,7 +80,6 @@ def update_incident(
     inc.status = new_status
     inc.updated_at = datetime.now(timezone.utc)
 
-    # record history
     hist = IncidentHistory(
         incident_id=inc.id,
         status=new_status,
@@ -108,48 +106,40 @@ def kb_search(
     session: Session = Depends(get_session),
     _: Any = Depends(require_staff),
 ) -> dict[str, list[KBSearchResultItem]]:
-    """Search the staff knowledge base using a simple scoring algorithm, paginated."""
+    """Search the staff knowledge base using embedding-based scoring."""
     q = query.strip()
     if not q:
         return {"results": []}
 
-    results: list[tuple[str, str, float, str | None]] = []
+    results: list[tuple[str, str, float, str | None, str]] = []
     docs = session.exec(select(KBDoc)).all()
 
     for d in docs:
-        # score whole doc
-        text = f"{d.title}\n{d.body}"
-        score = score_text(q, text)
-        if score > 0:
-            results.append((str(d.id), d.title, score, d.source_url))
-
-        # score chunks if present
-        for ch in getattr(d, "chunks", []) or []:
-            cscore = score_text(q, ch.text)
-            if cscore > 0:
-                results.append((str(d.id), d.title, cscore, d.source_url))
+        # collect embeddings from chunks
+        kb_embeddings = [c.embedding for c in getattr(d, "chunks", []) if c.embedding]
+        sim = score_text(q, kb_embeddings)
+        # stricter threshold to avoid false positives
+        if sim > 0.3:
+            results.append((str(d.id), d.title, sim, d.source_url, d.body))
 
     results.sort(key=lambda r: r[2], reverse=True)
 
     out: list[KBSearchResultItem] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[str] = set()
 
     start = (page - 1) * page_size
     end = start + page_size
 
-    for doc_id, title, score, src in results[start:end]:
-        if (doc_id, title) in seen:
+    for doc_id, title, score, src, body in results[start:end]:
+        if doc_id in seen:
             continue
-        seen.add((doc_id, title))
-
-        doc = next((x for x in docs if str(x.id) == doc_id), None)
-        snippet_source = (doc.body if doc else "")[:2000]
+        seen.add(doc_id)
 
         out.append(
             KBSearchResultItem(
                 doc_id=doc_id,
                 title=title,
-                snippet=best_snippet(snippet_source, q),
+                snippet=best_snippet(q, body),
                 score=float(score),
                 source_url=src,
             )
